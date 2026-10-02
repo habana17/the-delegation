@@ -34,12 +34,27 @@ export const useUiStore = create<CharacterState>()(
     setActiveAuditTaskId: (taskId: string | null) => set({ activeAuditTaskId: taskId }),
 
     llmConfig: (() => {
+      // Local-dev convenience: when running this app inside the
+      // agent-platform monorepo, `VITE_GEMINI_API_KEY` in .env.local
+      // (gitignored) pre-fills the BYOK config so Francis doesn't have
+      // to paste the key into the modal every session. Production
+      // builds (the public arturitu.github.io page) ship without an
+      // env key and still require the user to enter one via BYOKModal.
+      const envKey =
+        (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) || '';
       try {
         const saved = localStorage.getItem('byok-config');
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          // If localStorage has a key, prefer it; otherwise hydrate
+          // from env so a fresh browser still works in dev.
+          if (parsed.apiKey) return parsed;
+          if (envKey) return { ...parsed, apiKey: envKey };
+          return parsed;
+        }
       } catch { }
       return {
-        apiKey: '',
+        apiKey: envKey,
         model: DEFAULT_MODELS.text
       };
     })(),
